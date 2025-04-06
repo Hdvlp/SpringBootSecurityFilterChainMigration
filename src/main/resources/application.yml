@@ -7,8 +7,8 @@ spring:
       client:
         registration:
           github:
-            client-id: YOUR_VALUE_OF_CLIENT_ID
-            client-secret: YOUR_VALUE_OF_CLIENT_SECRET
+            client-id: ${YOUR_VALUE_OF_CLIENT_ID}
+            client-secret: ${YOUR_VALUE_OF_CLIENT_SECRET}
             scope:
             - read:user
             - user:email

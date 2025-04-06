@@ -139,14 +139,21 @@ public class ResourceServerConfig  {
                 .addFilterBefore(jwtAuthenticationFilter, UsernamePasswordAuthenticationFilter.class)
                 
                 .oauth2Client(Customizer.withDefaults())
-                        .oauth2Login(
+                .oauth2Login(
                             oauth2Login -> oauth2Login
                             .successHandler(customAuthenticationSuccessHandler())
                             .defaultSuccessUrl("/member/area")
-                        )
-                    .formLogin(Customizer.withDefaults()) 
-                    
-                ;
+
+                            
+                )
+                        
+                .formLogin(Customizer.withDefaults())
+
+                .logout(logout -> logout
+                    .logoutUrl("/logout")
+                    .addLogoutHandler(customLogoutHandler())
+                    .logoutSuccessHandler(customLogoutSuccessHandler())
+                );
 
         return http.build();
     }
@@ -154,6 +161,16 @@ public class ResourceServerConfig  {
     @Bean
     public AuthenticationSuccessHandler customAuthenticationSuccessHandler() {
         return new OAuth2AuthenticationSuccessHandler();
+    }
+
+    @Bean
+    public CustomLogoutHandler customLogoutHandler() {
+        return new CustomLogoutHandler();
+    }
+
+    @Bean
+    public CustomLogoutSuccessHandler customLogoutSuccessHandler() {
+        return new CustomLogoutSuccessHandler();
     }
 
 }

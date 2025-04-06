@@ -1,24 +1,28 @@
 package com.securityfilterchainmigration.demo.config;
 
+
+import java.io.IOException;
+
 import java.util.Arrays;
 import java.util.Base64;
 import java.util.Collection;
-import java.util.stream.Collectors;
 
+import java.util.stream.Collectors;
 import javax.crypto.SecretKey;
 import javax.crypto.spec.SecretKeySpec;
 
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
 import org.springframework.security.core.Authentication;
 import org.springframework.security.core.GrantedAuthority;
 import org.springframework.security.core.authority.SimpleGrantedAuthority;
+import org.springframework.security.core.context.SecurityContext;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.web.filter.OncePerRequestFilter;
 
-import io.jsonwebtoken.Claims;
-import io.jsonwebtoken.Jwts;
-import io.jsonwebtoken.io.IOException;
+import com.securityfilterchainmigration.demo.service.TokenRegistryService;
+
 import jakarta.servlet.FilterChain;
 import jakarta.servlet.ServletException;
 import jakarta.servlet.http.HttpServletRequest;
@@ -26,14 +30,35 @@ import jakarta.servlet.http.HttpServletResponse;
 
 @Configuration
 public class JwtAuthenticationFilter extends OncePerRequestFilter {
+    // Notes: 
+    //
+    // OncePerRequestFilter:
+    //     Filter base class that aims to guarantee a single execution per request dispatch, 
+    //     on any servlet container. 
+    //     It provides a doFilterInternal(jakarta.servlet.http.HttpServletRequest, 
+    //     jakarta.servlet.http.HttpServletResponse, jakarta.servlet.FilterChain) method  
+    //     with HttpServletRequest and HttpServletResponse arguments.
+    //     https://docs.spring.io/spring-framework/docs/current/javadoc-api/org/springframework/web/filter/OncePerRequestFilter.html
+
 
     private final OAuth2AuthenticationSuccessHandler 
         oAuth2AuthenticationSuccessHandler = new OAuth2AuthenticationSuccessHandler();
 
     private static final String SECRET_KEY = JwtConfig.getKey();
- 
+
+
+    @Autowired
+    private TokenRegistryService tokenRegistryService;
+
+    @Autowired
+    private SecurityContextProvider securityContextProvider;
+
+    @Autowired
+    private CookiesUtils cookiesUtils;
 
     SecretKey key = getSigningKey();
+
+
     public static SecretKey getSigningKey() {
 
         byte[] secretBytes = Base64.getDecoder().decode(SECRET_KEY);
@@ -44,90 +69,129 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
                                     HttpServletResponse response,
                                     FilterChain filterChain) throws ServletException, IOException {
       
+
+        String token =  cookiesUtils.getStringFromCookies(request, "jwt");
+
+        JwtUtils.readAndHandleToken(token, tokenRegistryService);
+
+
         try {
 
+            // Objective of the code below: Indicate a user is authenticated. 
+            // Steps involved: Set the SecurityContextHolder.
 
-            if (SecurityContextHolder.getContext().getAuthentication() == null) {
-                String token = resolveToken(request);
+            SecurityContext context = securityContextProvider.getSecurityContext();
+            // (SecurityContextHolder Point 1) 
+            // We start by creating a SecurityContext.
+            //
+            // SecurityContext - is obtained from the SecurityContextHolder 
+            // and contains the Authentication of the currently authenticated user.
+            //
+            // `SecurityContextHolder.getContext().setAuthentication(authentication)`
+            // is intentionally _not_ used to avoid race conditions.
+            // (This is because getting _and_ setting like this can cause inconsistencies.)
+            // https://docs.spring.io/spring-security/reference/servlet/authentication/architecture.html#servlet-authentication-securitycontextholder
+            
                 
+            Authentication auth = context.getAuthentication();
 
-                if (token != null && validateToken(token)) {
+            if (auth != null){
+                oAuth2AuthenticationSuccessHandler.onAuthenticationSuccess(
+                    request, 
+                    response,                                        
+                    auth
+                    );
 
-                    Authentication authentication = getAuthentication(token);
-                    SecurityContextHolder.getContext().setAuthentication(authentication);
-                }
-
+                // The lines below avoided `SecurityContextHolder.getContext().setAuthentication(authentication)`,
+                // thus avoiding race conditions of getting _and_ setting.
+                SecurityContext securityContext = SecurityContextHolder.createEmptyContext();
+                securityContext.setAuthentication(auth);
+                SecurityContextHolder.setContext(securityContext);
+                
                 filterChain.doFilter(request, response);
                 return;
+    
             }
-                                            
-            oAuth2AuthenticationSuccessHandler.onAuthenticationSuccess(
-                request, 
-                response,                                        
-                SecurityContextHolder.getContext().getAuthentication()
-                );
 
 
-            String token = resolveToken(request);
 
-            if (token != null && validateToken(token)) {
 
+
+            boolean isValidToken = false;
+            if (token != null){
+                isValidToken = JwtUtils.validateToken(token, tokenRegistryService);
+            }
+
+            if (token != null && isValidToken == true) {
+
+
+                // Notes:
+                //
+                // validateToken(token)
+                // (SecurityContextHolder Point 2)
+                // 
+                // We create a new Authentication object. 
+                // 
+                // https://docs.spring.io/spring-security/reference/servlet/authentication/architecture.html#servlet-authentication-securitycontextholder
                 
-                Authentication authentication = getAuthentication(token);
-                SecurityContextHolder.getContext().setAuthentication(authentication);
+                Authentication authJwt = getAuthentication(token);
+
+                if (authJwt != null){
+
+
+                    // The lines below avoided `SecurityContextHolder.getContext().setAuthentication(authentication)`,
+                    // thus avoiding race conditions of getting _and_ setting.
+                    SecurityContext securityContext = SecurityContextHolder.createEmptyContext();
+                    securityContext.setAuthentication(authJwt);
+                    SecurityContextHolder.setContext(securityContext);
+
+                    // (SecurityContextHolder Point 3)
+                    // Finally, we set the SecurityContext on the SecurityContextHolder. 
+                    // Spring Security uses this information for authorization.
+                    // 
+                    // https://docs.spring.io/spring-security/reference/servlet/authentication/architecture.html#servlet-authentication-securitycontextholder
+
+
+
+                    filterChain.doFilter(request, response);
+                    return;
+
+                }
+
             }
 
+
+            // Keep this default filter chain when nothing above matches.
+            // This is the default filter chain below. 
             filterChain.doFilter(request, response);
-        }catch (Exception _){}
+            return;
+        }catch (Exception e){}
     }
 
-    private String resolveToken(HttpServletRequest request) {
 
-        String bearerToken = request.getHeader("Authorization");
-        if (bearerToken != null && bearerToken.startsWith("Bearer ")) {
-            return bearerToken.substring(7);
-        }
-        return null;
-    }
 
-    private boolean validateToken(String token) {
-
-        try {
-            Jwts           
-                .parser()
-                .verifyWith(key)
-                .build()
-                .parseSignedClaims(token)
-                .getPayload();
-            return true;
-        } catch (Exception e) {
-            return false;
-        }
-    }
-
-    private static Claims parseToken(String token) {
-
-        SecretKey key = getSigningKey();
-        return Jwts
-            .parser()
-            .verifyWith(key)
-            .build()
-            .parseSignedClaims(token)
-            .getPayload();
-    }
 
     private Authentication getAuthentication(String token) {
 
-        Claims claims = parseToken(token);
+        Collection<? extends GrantedAuthority> authoritiesDefault =
+            Arrays.stream(new String[]{"USER"}) 
+                    .map(SimpleGrantedAuthority::new)
+                    .collect(Collectors.toList());
 
-        Collection<? extends GrantedAuthority> authorities =
-                Arrays.stream(claims.get("roles").toString().split(","))
-                        .map(SimpleGrantedAuthority::new)
-                        .collect(Collectors.toList());
+        UsernamePasswordAuthenticationToken authTok = new UsernamePasswordAuthenticationToken(
+            JwtConfig.getJwtClaimSubject(), 
+            token, 
+            authoritiesDefault);
+        return authTok;
 
-                        
+        // Notes:
+        //
+        // UsernamePasswordAuthenticationToken(JwtConfig.getJwtClaimSubject(), token, authoritiesDefault)
+        // This constructor should only be used by AuthenticationManager or 
+        // AuthenticationProvider implementations that are satisfied with producing a trusted 
+        // (i.e. AbstractAuthenticationToken.isAuthenticated() = true) authentication token.
+        // https://docs.spring.io/spring-security/site/docs/4.0.x/apidocs/org/springframework/security/authentication/UsernamePasswordAuthenticationToken.html#UsernamePasswordAuthenticationToken-java.lang.Object-java.lang.Object-java.util.Collection-
 
-        return new UsernamePasswordAuthenticationToken(claims.getSubject(), token, authorities);
     }
 
 }
