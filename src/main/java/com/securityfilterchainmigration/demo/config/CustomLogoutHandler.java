@@ -1,5 +1,7 @@
 package com.securityfilterchainmigration.demo.config;
 
+import java.util.Objects;
+
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.security.core.Authentication;
@@ -23,7 +25,7 @@ public class CustomLogoutHandler implements LogoutHandler {
     public void logout(HttpServletRequest request, HttpServletResponse response, Authentication authentication) {
 
         String jwtValue = cookiesUtils.getStringFromCookies(request, "jwt");
-        if (jwtValue == null){
+        if (Objects.equals(jwtValue, null)){
             return;
         }
 

@@ -5,6 +5,7 @@ import org.springframework.web.bind.annotation.RestController;
 import com.securityfilterchainmigration.demo.service.OAuth2ApiService;
 
 import java.util.Arrays;
+import java.util.Objects;
 
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -45,7 +46,9 @@ public class WebController {
     @GetMapping("/actuator/health/{service}")
     public String actuatorContent(@PathVariable final String service) {
         String[] services = {"servicea", "serviceb", "servicec", "serviced"};
-        if (Arrays.asList(services).indexOf(service) == -1) return "";
+        if (Objects.equals(Arrays.asList(services).indexOf(service), -1)){
+            return "";
+        } 
         return String.format("actuator health of %s.", service);
     }
 

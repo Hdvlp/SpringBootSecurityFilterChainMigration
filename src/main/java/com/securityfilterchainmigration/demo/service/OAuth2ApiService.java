@@ -2,6 +2,7 @@ package com.securityfilterchainmigration.demo.service;
 
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.stream.Collectors;
 
 import org.springframework.beans.factory.annotation.Autowired;
@@ -45,7 +46,7 @@ public class OAuth2ApiService {
                                                 //
                                                 // https://docs.spring.io/spring-security/reference/api/java/org/springframework/security/oauth2/client/OAuth2AuthorizedClientManager.html#authorize(org.springframework.security.oauth2.client.OAuth2AuthorizeRequest)
     
-        if (authorizedClient == null) {
+        if (Objects.equals(authorizedClient, null)) {
             throw new IllegalStateException("Authorization failed");
         }
 
@@ -64,7 +65,7 @@ public class OAuth2ApiService {
     
         OAuth2AuthorizedClient authorizedClient = authorizedClientManager.authorize(authorizeRequest);
 
-        if (authorizedClient == null) {
+        if (Objects.equals(authorizedClient, null)) {
             throw new IllegalStateException("Failed to authorize client.");
         }
 

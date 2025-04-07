@@ -11,6 +11,7 @@ import com.securityfilterchainmigration.demo.service.TokenRegistryService;
 
 import java.util.Date;
 import java.util.Map;
+import java.util.Objects;
 
 
 public class JwtUtils {
@@ -50,7 +51,7 @@ public class JwtUtils {
 
     public static void readAndHandleToken(String token, TokenRegistryService tokenRegistryService){
 
-        if (validateToken(token, tokenRegistryService) == false){
+        if (Objects.equals(validateToken(token, tokenRegistryService),false)){
             return;
         }
 
@@ -68,13 +69,13 @@ public class JwtUtils {
             String personalitiesJson = signedJWT.getJWTClaimsSet().getStringClaim("personalities");
             Personalities personalities = objectMapper.readValue(personalitiesJson, Personalities.class);
             
-            if (subjectClaim == null){
+            if (Objects.equals(subjectClaim, null)){
                 return;
             }
-            if (nutrition.toString() == null){
+            if (Objects.equals(nutrition.toString(), null)){
                 return;
             }
-            if (personalities.toString() == null){
+            if (Objects.equals(personalities.toString(), null)){
                 return;
             }
   
@@ -90,7 +91,7 @@ public class JwtUtils {
 
     public static boolean validateToken(String token, TokenRegistryService tokenRegistryService) {
         boolean isValid = false;
-        if (token == null) {
+        if (Objects.equals(token, null)) {
             isValid = false;
             return isValid;
         }
@@ -102,7 +103,7 @@ public class JwtUtils {
 
         boolean isUsedPreviously = tokenRegistryService.isTokenUsedPreviously(token);
 
-        if (isUsedPreviously == true){
+        if (Objects.equals(isUsedPreviously, true)){
             
             isValid = false;
             return isValid;

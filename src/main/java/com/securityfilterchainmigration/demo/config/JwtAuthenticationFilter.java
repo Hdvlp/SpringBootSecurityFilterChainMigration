@@ -6,7 +6,7 @@ import java.io.IOException;
 import java.util.Arrays;
 import java.util.Base64;
 import java.util.Collection;
-
+import java.util.Objects;
 import java.util.stream.Collectors;
 import javax.crypto.SecretKey;
 import javax.crypto.spec.SecretKeySpec;
@@ -95,7 +95,7 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
                 
             Authentication auth = context.getAuthentication();
 
-            if (auth != null){
+            if (!Objects.equals(auth, null)){
                 oAuth2AuthenticationSuccessHandler.onAuthenticationSuccess(
                     request, 
                     response,                                        
@@ -118,11 +118,11 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
 
 
             boolean isValidToken = false;
-            if (token != null){
+            if (!Objects.equals(token, null)){
                 isValidToken = JwtUtils.validateToken(token, tokenRegistryService);
             }
 
-            if (token != null && isValidToken == true) {
+            if (!Objects.equals(token, null) && Objects.equals(isValidToken, true)) {
 
 
                 // Notes:
@@ -136,7 +136,7 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
                 
                 Authentication authJwt = getAuthentication(token);
 
-                if (authJwt != null){
+                if (!Objects.equals(authJwt, null)){
 
 
                     // The lines below avoided `SecurityContextHolder.getContext().setAuthentication(authentication)`,
@@ -165,7 +165,7 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
             // This is the default filter chain below. 
             filterChain.doFilter(request, response);
             return;
-        }catch (Exception e){}
+        }catch (Exception _){}
     }
 
 
